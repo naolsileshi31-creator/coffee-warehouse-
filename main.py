@@ -1,11 +1,10 @@
 import datetime
+import os
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-import os
 import uvicorn
 
 # 1. DATABASE SETUP
@@ -24,38 +23,29 @@ class CoffeeBatch(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# 2. APP SETUP
+# 2. APP
 app = FastAPI(title="Coffee Warehouse Inventory")
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# 3. HTML TEMPLATE (እዚህ ላይ ነው ፎርሙ ያለው)
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="am">
+<head><title>የቡና መጋዘን ክምችት</title></head>
+<body style="font-family: sans-serif; padding: 20px;">
+    <h1>☕ የቡና መጋዘን ክምችት መቆጣጠሪያ</h1>
+    <p>አፕሊኬሽኑ በተሳካ ሁኔታ ተገናኝቷል!</p>
+</body>
+</html>
+"""
 
-# 3. ROUTES
 @app.get("/", response_class=HTMLResponse)
 def get_ui():
-    return """
-    <html>
-        <body>
-            <h1>እንኳን ወደ ቡና ማከማቻው በደህና መጡ!</h1>
-            <p>አፕሊኬሽኑ በትክክል እየሰራ ነው።</p>
-        </body>
-    </html>
-    """
+    return HTML_TEMPLATE
 
-@app.post("/batches")
-def create_batch(batch_number: str, coffee_type: str, grade: str, origin: str, db: Session = Depends(get_db)):
-    db_batch = CoffeeBatch(batch_number=batch_number, coffee_type=coffee_type, grade=grade, origin=origin)
-    db.add(db_batch)
-    db.commit()
-    return {"message": "ባች ተመዝግቧል"}
-
-@app.get("/stocks")
-def get_stocks(db: Session = Depends(get_db)):
-    return db.query(CoffeeBatch).all()
+# Simple API Endpoint
+@app.get("/status")
+def get_status():
+    return {"status": "እየሰራ ነው!"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
