@@ -3,10 +3,9 @@ import os
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-import uvicorn
 
 # 1. DATABASE SETUP
 DATABASE_URL = "sqlite:///./coffee_warehouse.db"
@@ -29,78 +28,63 @@ class CoffeeBatch(Base):
     coffee_type = Column(String, default="Natural")
     grade = Column(String, nullable=False)
     origin = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class Arrival(Base):
     __tablename__ = "arrivals"
     id = Column(Integer, primary_key=True, index=True)
     batch_id = Column(Integer, ForeignKey("coffee_batches.id"), nullable=False)
-    date = Column(DateTime, default=datetime.datetime.utcnow)
     number_of_bags = Column(Integer, nullable=False)
     total_weight_kg = Column(Float, nullable=False)
-    supplier = Column(String, nullable=True)
 
 class Dispatch(Base):
     __tablename__ = "dispatches"
     id = Column(Integer, primary_key=True, index=True)
     batch_id = Column(Integer, ForeignKey("coffee_batches.id"), nullable=False)
-    date = Column(DateTime, default=datetime.datetime.utcnow)
     number_of_bags = Column(Integer, nullable=False)
     total_weight_kg = Column(Float, nullable=False)
-    destination = Column(String, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
-# 3. PYDANTIC SCHEMAS
-class CoffeeBatchCreate(BaseModel):
-    batch_number: str
-    coffee_type: str = "Natural"
-    grade: str
-    origin: str
-
-class CoffeeBatchResponse(CoffeeBatchCreate):
-    id: int
-    created_at: datetime.datetime
-    model_config = ConfigDict(from_attributes=True)
-
-class ArrivalCreate(BaseModel):
-    batch_id: int
-    number_of_bags: int
-    total_weight_kg: float
-    supplier: Optional[str] = None
-
-class ArrivalResponse(ArrivalCreate):
-    id: int
-    date: datetime.datetime
-    model_config = ConfigDict(from_attributes=True)
-
-class DispatchCreate(BaseModel):
-    batch_id: int
-    number_of_bags: int
-    total_weight_kg: float
-    destination: Optional[str] = None
-
-class DispatchResponse(DispatchCreate):
-    id: int
-    date: datetime.datetime
-    model_config = ConfigDict(from_attributes=True)
-
-class StockStatusResponse(BaseModel):
-    batch_id: int
-    batch_number: str
-    coffee_type: str
-    grade: str
-    origin: str
-    total_bags_received: int
-    total_weight_received: float
-    total_bags_dispatched: int
-    total_weight_dispatched: float
-    current_bags_in_stock: int
-    current_weight_in_stock: float
-
-# 4. FASTAPI APPLICATION
+# 3. FASTAPI APPLICATION
 app = FastAPI(title="Coffee Warehouse Inventory")
 
+@app.get("/", response_class=HTMLResponse)
+def get_ui():
+    return """
+    <!DOCTYPE html>
+    <html lang="am">
+    <head>
+        <meta charset="UTF-8">
+        <title>የቡና መጋዘን</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-100 p-5">
+        <h1 class="text-2xl font-bold text-center">የቡና መጋዘን ክምችት</h1>
+        <div class="max-w-md mx-auto mt-5 bg-white p-6 rounded shadow">
+            <p>አፕሊኬሽኑ በትክክል ተገናኝቷል! ይህ ቦታ የቡና መረጃዎችን ለማስተዳደር ያገለግላል።</p>
+        </div>
+    </body>
+    </html>
+    """
+
+# 4. API ROUTES
+@app.post("/batches")
+def create_batch(batch_number: str, coffee_type: str, grade: str, origin: str, db: Session = Depends(get_db)):
+    db_batch = CoffeeBatch(batch_number=batch_number, coffee_type=coffee_type, grade=grade, origin=origin)
+    db.add(db_batch)
+    db.commit()
+    return {"message": "ባች ተመዝግቧል"}
+
+@app.get("/stocks")
+def get_stocks(db: Session = Depends(get_db)):
+    batches = db.query(CoffeeBatch).all()
+    return batches
+
+# 5. SERVER STARTUP
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
 # --- FRONTEND UI (HTML/CSS/JS) ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
